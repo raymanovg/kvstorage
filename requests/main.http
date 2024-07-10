@@ -1,0 +1,33 @@
+###
+### Ping
+GET http://localhost:8080/ping
+
+###
+
+### Health
+GET http://localhost:8080/_health
+
+###
+
+### Version
+GET http://localhost:8080/_version
+
+###
+
+### Get value by key
+GET http://localhost:8080/cache/123
+
+###
+
+### Set new val by key
+PUT http://localhost:8080/cache/123
+Content-Type: application/json
+
+{
+  "value": "123"
+}
+
+###
+
+### Delete value by key
+DELETE http://localhost:8080/cache/123

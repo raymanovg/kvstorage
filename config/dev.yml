@@ -1,0 +1,8 @@
+env: "dev"
+
+cache:
+  driver: "partitioned_map"
+
+partitioned_map:
+  partitions: 2
+  size: 100
