@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -38,10 +39,7 @@ func NewHandler(c *cache.Cache[string, string]) *Handler {
 	router.Use(middleware.Recoverer)
 
 	router.Route("/", func(rt chi.Router) {
-		rt.Get("/_version", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(config.VERSION))
-		})
+		rt.Get("/_version", h.Version)
 	})
 
 	router.Route("/cache/{key}", func(rt chi.Router) {
@@ -55,8 +53,20 @@ func NewHandler(c *cache.Cache[string, string]) *Handler {
 	return h
 }
 
+func (h *Handler) Version(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(config.VERSION)); err != nil {
+		log.Println("failed to write response:", err)
+	}
+}
+
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if key == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	v, err := h.cache.Get(key)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -69,21 +79,34 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	b, _ := json.Marshal(&resp)
-
-	_, _ = w.Write(b)
+	if _, err = w.Write(b); err != nil {
+		log.Println("error writing response:", err)
+	}
 }
 
 func (h *Handler) Set(w http.ResponseWriter, r *http.Request) {
 	var value Value
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("error closing body %v", err)
+		}
+	}()
+
 	err := json.NewDecoder(r.Body).Decode(&value)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	key := chi.URLParam(r, "key")
+	if key == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	if err := h.cache.Set(key, value.Value); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -92,6 +115,11 @@ func (h *Handler) Set(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Del(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if key == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	if err := h.cache.Del(key); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
