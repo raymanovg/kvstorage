@@ -2,7 +2,6 @@ package partitioned_map
 
 import (
 	"fmt"
-	"runtime"
 	"sync"
 	"testing"
 
@@ -26,22 +25,22 @@ func TestPartitionedMap(t *testing.T) {
 		assert.Equal(t, 0, len(pm.partitions[i].mp), fmt.Sprintf("actual len of partition %d is not equal to expected", i))
 	}
 
-	pm.Set("a", "a")
+	_ = pm.Set("a", "a")
 	pk := pm.GetPartitionKey("a")
 
 	assert.Equal(t, 1, len(pm.partitions[pk].mp), fmt.Sprintf("actual len of partition %d is not equal to expected", pk))
 
-	pm.Set("ab", "ab")
+	_ = pm.Set("ab", "ab")
 	pk = pm.GetPartitionKey("ab")
 
 	assert.Equal(t, 1, len(pm.partitions[pk].mp), fmt.Sprintf("actual len of partition %d is not equal to expected", pk))
 
-	pm.Set("abc", "abc")
+	_ = pm.Set("abc", "abc")
 	pk = pm.GetPartitionKey("abc")
 
 	assert.Equal(t, 2, len(pm.partitions[pk].mp), fmt.Sprintf("actual len of partition %d is not equal to expected", pk))
 
-	pm.Set("abcd", "abc")
+	_ = pm.Set("abcd", "abc")
 	pk = pm.GetPartitionKey("abcd")
 
 	assert.Equal(t, 2, len(pm.partitions[pk].mp), fmt.Sprintf("actual len of partition %d is not equal to expected", pk))
@@ -93,8 +92,13 @@ func BenchmarkMapSet(b *testing.B) {
 	})
 
 	b.Run("benchmark partitioned map set", func(b *testing.B) {
+		const (
+			partitions = 10
+			size       = 0
+		)
+
 		var wg sync.WaitGroup
-		m := NewPartitionedMap[int, int](runtime.NumCPU(), 0, func(key int) int {
+		m := NewPartitionedMap[int, int](partitions, size, func(key int) int {
 			return key
 		})
 		b.ReportAllocs()
@@ -104,7 +108,9 @@ func BenchmarkMapSet(b *testing.B) {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
-				m.Set(index, index)
+				if err := m.Set(index, index); err != nil {
+					b.Fail()
+				}
 			}(i)
 		}
 
@@ -169,12 +175,17 @@ func BenchmarkMapGet(b *testing.B) {
 	})
 
 	b.Run("benchmark partitioned map get", func(b *testing.B) {
+		const (
+			partitions = 10
+			size       = 0
+		)
+
 		var wg sync.WaitGroup
-		m := NewPartitionedMap[int, int](runtime.NumCPU(), 0, func(key int) int {
+		m := NewPartitionedMap[int, int](partitions, size, func(key int) int {
 			return key
 		})
 		for i := 0; i < b.N; i++ {
-			m.Set(i, i)
+			_ = m.Set(i, i)
 		}
 
 		b.ReportAllocs()
@@ -198,7 +209,7 @@ func BenchmarkMapGet(b *testing.B) {
 func BenchmarkMapGetSet(b *testing.B) {
 	b.Run("benchmark standard map get set", func(b *testing.B) {
 		var mx sync.RWMutex
-		m := make(map[string]int)
+		m := make(map[int]int)
 		c := make(chan int, 0xff)
 
 		b.ReportAllocs()
@@ -211,7 +222,7 @@ func BenchmarkMapGetSet(b *testing.B) {
 				go func(index int) {
 					defer wg.Done()
 					mx.Lock()
-					m[fmt.Sprintf("%d", index)] = index
+					m[index] = index
 					mx.Unlock()
 					c <- index
 				}(i)
@@ -226,7 +237,7 @@ func BenchmarkMapGetSet(b *testing.B) {
 			go func(index int) {
 				defer wg.Done()
 				mx.RLock()
-				v, ok := m[fmt.Sprintf("%d", index)]
+				v, ok := m[index]
 				mx.RUnlock()
 				if !ok && v == 0 {
 					b.Fail()
@@ -272,7 +283,12 @@ func BenchmarkMapGetSet(b *testing.B) {
 	})
 
 	b.Run("benchmark partitioned map get set", func(b *testing.B) {
-		m := NewPartitionedMap[int, int](uint64(runtime.NumCPU()), 0, func(key int) int {
+		const (
+			partitions = 10
+			size       = 0
+		)
+
+		m := NewPartitionedMap[int, int](partitions, size, func(key int) int {
 			return key
 		})
 
@@ -287,7 +303,9 @@ func BenchmarkMapGetSet(b *testing.B) {
 				wg.Add(1)
 				go func(index int) {
 					defer wg.Done()
-					m.Set(index, index)
+					if err := m.Set(index, index); err != nil {
+						b.Fail()
+					}
 					c <- index
 				}(i)
 			}
