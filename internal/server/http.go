@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/raymanovg/kvstorage/internal/config"
 	"net/http"
+
+	"github.com/raymanovg/kvstorage/internal/config"
 )
 
 func NewServer(config config.Http, handler http.Handler) *http.Server {

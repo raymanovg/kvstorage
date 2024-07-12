@@ -25,7 +25,7 @@ type Cache struct {
 }
 
 type Http struct {
-	Addr string `yaml:"addr" env:"HTTP_ADDR" env-default:":8080"`
+	Addr string `yaml:"addr" env:"HTTP_ADDR" env-default:":8000"`
 }
 
 func MustLoad() Config {
