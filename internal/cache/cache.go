@@ -2,8 +2,13 @@ package cache
 
 import (
 	"errors"
+
 	"github.com/raymanovg/kvstorage/internal/config"
 	"github.com/raymanovg/kvstorage/internal/partitioned_map"
+)
+
+var (
+	InvalidCacheDriver = errors.New("invalid cache driver")
 )
 
 type Driver[K comparable, V any] interface {
@@ -21,7 +26,7 @@ func NewStrStrCache(conf config.Config) (*Cache[string, string], error) {
 	case "partitioned_map":
 		return NewWithPartitionedMap[string, string](conf.PartitionedMap, partitioned_map.DefaultStringHashFunc), nil
 	default:
-		return nil, errors.New("invalid cache driver")
+		return nil, InvalidCacheDriver
 	}
 }
 

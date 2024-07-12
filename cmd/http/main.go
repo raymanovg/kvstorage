@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,22 +13,25 @@ import (
 	"github.com/raymanovg/kvstorage/internal/cache"
 	"github.com/raymanovg/kvstorage/internal/config"
 	"github.com/raymanovg/kvstorage/internal/handler"
+	"github.com/raymanovg/kvstorage/internal/logger"
 	"github.com/raymanovg/kvstorage/internal/server"
 )
 
 func main() {
 	cfg := config.MustLoad()
+	log := logger.NewLogger(cfg.Env)
 	c, err := cache.NewStrStrCache(cfg)
 	if err != nil {
-		log.Fatalf("Creating cache error: %v", err)
+		log.Error("Creating cache error", slog.String("error", err.Error()))
+		return
 	}
 
-	h := handler.NewHandler(c)
+	h := handler.NewHandler(c, log)
 	srv := server.NewServer(cfg.Http, h)
 
 	go func() {
 		if err = srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("HTTP server error: %v", err)
+			log.Error("HTTP server error", slog.String("error", err.Error()))
 		}
 	}()
 
@@ -40,8 +43,8 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("HTTP shutdown error: %v", err)
+		log.Error("HTTP shutdown error", slog.String("error", err.Error()))
 	}
 
-	log.Println("HTTP server shutdown gracefully")
+	log.Info("HTTP server shutdown gracefully")
 }

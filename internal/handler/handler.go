@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -20,15 +20,17 @@ type Value struct {
 type Handler struct {
 	chi   chi.Router
 	cache *cache.Cache[string, string]
+	log   *slog.Logger
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.chi.ServeHTTP(rw, r)
 }
 
-func NewHandler(c *cache.Cache[string, string]) *Handler {
+func NewHandler(c *cache.Cache[string, string], log *slog.Logger) *Handler {
 	h := &Handler{
 		cache: c,
+		log:   log,
 	}
 
 	router := chi.NewRouter()
@@ -56,7 +58,7 @@ func NewHandler(c *cache.Cache[string, string]) *Handler {
 func (h *Handler) Version(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte(config.VERSION)); err != nil {
-		log.Println("failed to write response:", err)
+		h.log.Error("failed to write response", slog.String("error", err.Error()))
 	}
 }
 
@@ -80,7 +82,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 
 	b, _ := json.Marshal(&resp)
 	if _, err = w.Write(b); err != nil {
-		log.Println("error writing response:", err)
+		h.log.Error("failed to write response", slog.String("error", err.Error()))
 	}
 }
 
@@ -89,7 +91,7 @@ func (h *Handler) Set(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		if err := r.Body.Close(); err != nil {
-			log.Printf("error closing body %v", err)
+			h.log.Error("failed to close request body", slog.String("error", err.Error()))
 		}
 	}()
 

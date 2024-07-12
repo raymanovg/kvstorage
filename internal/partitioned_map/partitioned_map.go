@@ -1,8 +1,12 @@
 package partitioned_map
 
 import (
-	"fmt"
+	"errors"
 	"sync"
+)
+
+var (
+	KeyNotFoundError = errors.New("key not found")
 )
 
 // HashFunc is func to convert comparable key to int to find a partition key
@@ -58,7 +62,7 @@ func (pm *PartitionedMap[K, V]) Get(k K) (V, error) {
 
 	v, ok := pm.partitions[pk].mp[k]
 	if !ok {
-		return v, fmt.Errorf("key not found")
+		return v, KeyNotFoundError
 	}
 
 	return v, nil

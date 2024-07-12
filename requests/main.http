@@ -1,26 +1,26 @@
 ###
 ### Ping
-GET http://localhost:8080/ping
+GET http://localhost:8000/ping
 
 ###
 
 ### Health
-GET http://localhost:8080/_health
+GET http://localhost:8000/_health
 
 ###
 
 ### Version
-GET http://localhost:8080/_version
+GET http://localhost:8000/_version
 
 ###
 
 ### Get value by key
-GET http://localhost:8080/cache/123
+GET http://localhost:8000/cache/123
 
 ###
 
 ### Set new val by key
-PUT http://localhost:8080/cache/123
+PUT http://localhost:8000/cache/123
 Content-Type: application/json
 
 {
@@ -30,4 +30,4 @@ Content-Type: application/json
 ###
 
 ### Delete value by key
-DELETE http://localhost:8080/cache/123
+DELETE http://localhost:8000/cache/123
