@@ -20,6 +20,7 @@ import (
 func main() {
 	cfg := config.MustLoad()
 	log := logger.NewLogger(cfg.Env)
+
 	c, err := cache.NewStrStrCache(cfg)
 	if err != nil {
 		log.Error("Creating cache error", slog.String("error", err.Error()))

@@ -30,7 +30,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func NewHandler(c *cache.Cache[string, string], log *slog.Logger) *Handler {
 	h := &Handler{
 		cache: c,
-		log:   log,
+		log:   log.With("component", "http_handler"),
 	}
 
 	router := chi.NewRouter()
