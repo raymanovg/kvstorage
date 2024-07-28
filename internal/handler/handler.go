@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/raymanovg/kvstorage/internal/cache"
-	"github.com/raymanovg/kvstorage/internal/config"
 )
 
 type Value struct {
@@ -40,10 +39,6 @@ func NewHandler(c *cache.Cache[string, string], log *slog.Logger) *Handler {
 	router.Use(middleware.Timeout(2 * time.Second))
 	router.Use(middleware.Recoverer)
 
-	router.Route("/", func(rt chi.Router) {
-		rt.Get("/_version", h.Version)
-	})
-
 	router.Route("/cache/{key}", func(rt chi.Router) {
 		rt.Get("/", h.Get)
 		rt.Put("/", h.Set)
@@ -53,13 +48,6 @@ func NewHandler(c *cache.Cache[string, string], log *slog.Logger) *Handler {
 	h.chi = router
 
 	return h
-}
-
-func (h *Handler) Version(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(config.VERSION)); err != nil {
-		h.log.Error("failed to write response", slog.String("error", err.Error()))
-	}
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {

@@ -1,84 +1,114 @@
 package partitioned_map
 
-import (
-	"errors"
-	"sync"
+import "errors"
+
+const (
+	DefaultPartitionsNum = 100
+	DefaultPartitionSize = 100
 )
 
 var (
-	KeyNotFoundError = errors.New("key not found")
+	NotFoundError = errors.New("key not found")
 )
 
-// HashFunc is func to convert comparable key to int to find a partition key
-type HashFunc[K comparable] func(key K) int
+type (
+	Partitioner[K comparable, V any] interface {
+		Get(key K) (V, bool)
+		Put(key K, value V)
+		Del(key K)
+		Len() int
+	}
+
+	PartitionedMap[K comparable, V any] struct {
+		partitions       []Partitioner[K, V]
+		hashFunc         HashFunc[K]
+		partitionCreator PartitionCreator[K, V]
+		partitionsNum    int
+		partitionSize    int
+	}
+
+	Option[K comparable, V any] func(*PartitionedMap[K, V])
+
+	HashFunc[K comparable]                func(key K) int
+	PartitionCreator[K comparable, V any] func() Partitioner[K, V]
+)
 
 func DefaultStringHashFunc(k string) int {
 	return len(k)
 }
 
-// Partition is a struct representing map with its own rw mutex
-type Partition[K comparable, V any] struct {
-	mu sync.RWMutex
-	mp map[K]V
-}
-
-type PartitionedMap[K comparable, V any] struct {
-	partitions []Partition[K, V]
-	hf         HashFunc[K]
-}
-
-func NewPartitionedMap[K comparable, V any](partitions, size uint64, hashFunc HashFunc[K]) *PartitionedMap[K, V] {
-	pm := PartitionedMap[K, V]{
-		partitions: make([]Partition[K, V], partitions),
-		hf:         hashFunc,
+func WithPartitionsNum[K comparable, V any](partitionsNum int) func(*PartitionedMap[K, V]) {
+	return func(pm *PartitionedMap[K, V]) {
+		pm.partitionsNum = partitionsNum
 	}
+}
 
-	for i := 0; i < int(partitions); i++ {
-		pm.partitions[i] = Partition[K, V]{
-			mu: sync.RWMutex{},
-			mp: make(map[K]V, size),
+func WithLRUPartition[K comparable, V any](size int) func(*PartitionedMap[K, V]) {
+	return func(pm *PartitionedMap[K, V]) {
+		pm.partitionCreator = func() Partitioner[K, V] {
+			return NewLRUPartition[K, V](size)
 		}
 	}
-
-	return &pm
 }
 
-func (pm *PartitionedMap[K, V]) Set(k K, v V) error {
-	pk := pm.GetPartitionKey(k)
+func WithDefaultPartition[K comparable, V any](size int) func(*PartitionedMap[K, V]) {
+	return func(pm *PartitionedMap[K, V]) {
+		pm.partitionCreator = func() Partitioner[K, V] {
+			return NewPartition[K, V](size)
+		}
+	}
+}
 
-	pm.partitions[pk].mu.Lock()
-	defer pm.partitions[pk].mu.Unlock()
+func NewPartitionedMap[K comparable, V any](hashFunc HashFunc[K], options ...Option[K, V]) *PartitionedMap[K, V] {
+	pm := &PartitionedMap[K, V]{
+		partitionsNum: DefaultPartitionsNum,
+		partitionSize: DefaultPartitionSize,
+		partitionCreator: func() Partitioner[K, V] {
+			return NewPartition[K, V](DefaultPartitionSize)
+		},
+		hashFunc: hashFunc,
+	}
 
-	pm.partitions[pk].mp[k] = v
+	for _, option := range options {
+		option(pm)
+	}
 
+	for i := 0; i < pm.partitionsNum; i++ {
+		pm.partitions = append(pm.partitions, pm.partitionCreator())
+	}
+
+	return pm
+}
+
+func (pm *PartitionedMap[K, V]) Put(k K, v V) error {
+	pm.GetPartition(k).Put(k, v)
 	return nil
 }
 
 func (pm *PartitionedMap[K, V]) Get(k K) (V, error) {
-	pk := pm.GetPartitionKey(k)
-
-	pm.partitions[pk].mu.RLock()
-	defer pm.partitions[pk].mu.RUnlock()
-
-	v, ok := pm.partitions[pk].mp[k]
-	if !ok {
-		return v, KeyNotFoundError
+	if v, ok := pm.GetPartition(k).Get(k); ok {
+		return v, nil
 	}
 
-	return v, nil
+	var v V
+
+	return v, NotFoundError
 }
 
 func (pm *PartitionedMap[K, V]) Del(k K) error {
-	pk := pm.GetPartitionKey(k)
-
-	pm.partitions[pk].mu.Lock()
-	defer pm.partitions[pk].mu.Unlock()
-
-	delete(pm.partitions[pk].mp, k)
-
+	pm.GetPartition(k).Del(k)
 	return nil
 }
 
 func (pm *PartitionedMap[K, V]) GetPartitionKey(k K) int {
-	return pm.hf(k) % len(pm.partitions)
+	return pm.hashFunc(k) % pm.Len()
+}
+
+func (pm *PartitionedMap[K, V]) Len() int {
+	return len(pm.partitions)
+}
+
+func (pm *PartitionedMap[K, V]) GetPartition(k K) Partitioner[K, V] {
+	pk := pm.GetPartitionKey(k)
+	return pm.partitions[pk]
 }

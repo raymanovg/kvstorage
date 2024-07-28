@@ -6,8 +6,6 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
-const VERSION = "unknown"
-
 type Config struct {
 	Env            string `yaml:"env" env:"ENV" env-default:"dev"`
 	Cache          Cache
@@ -16,8 +14,8 @@ type Config struct {
 }
 
 type PartitionedMap struct {
-	Partitions    uint64 `yaml:"partitions" env:"PARTITIONS" env-default:"2"`
-	PartitionSize uint64 `yaml:"partition_size" env:"PARTITION_SIZE" env-default:"10"`
+	Partitions    int `yaml:"partitions" env:"PARTITIONS" env-default:"2"`
+	PartitionSize int `yaml:"partition_size" env:"PARTITION_SIZE" env-default:"10"`
 }
 
 type Cache struct {

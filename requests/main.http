@@ -4,16 +4,6 @@ GET http://localhost:8000/ping
 
 ###
 
-### Health
-GET http://localhost:8000/_health
-
-###
-
-### Version
-GET http://localhost:8000/_version
-
-###
-
 ### Get value by key
 GET http://localhost:8000/cache/123
 

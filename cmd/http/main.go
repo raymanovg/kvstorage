@@ -17,9 +17,11 @@ import (
 	"github.com/raymanovg/kvstorage/internal/server"
 )
 
+const Version = "dev"
+
 func main() {
 	cfg := config.MustLoad()
-	log := logger.NewLogger(cfg.Env)
+	log := logger.NewLogger(cfg.Env, Version)
 
 	c, err := cache.NewStrStrCache(cfg)
 	if err != nil {

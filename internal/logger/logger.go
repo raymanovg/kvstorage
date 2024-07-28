@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func NewLogger(env string) *slog.Logger {
+func NewLogger(env, version string) *slog.Logger {
 	var handler slog.Handler
 
 	switch env {
@@ -17,5 +17,5 @@ func NewLogger(env string) *slog.Logger {
 		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
 	}
 
-	return slog.New(handler)
+	return slog.New(handler).With("env", env, "version", version)
 }

@@ -12,7 +12,7 @@ var (
 )
 
 type Driver[K comparable, V any] interface {
-	Set(key K, value V) error
+	Put(key K, value V) error
 	Get(key K) (V, error)
 	Del(key K) error
 }
@@ -35,13 +35,17 @@ func NewWithDriver[K comparable, V any](driver Driver[K, V]) *Cache[K, V] {
 }
 
 func NewWithPartitionedMap[K comparable, V any](conf config.PartitionedMap, hashFunc partitioned_map.HashFunc[K]) *Cache[K, V] {
-	driver := partitioned_map.NewPartitionedMap[K, V](conf.Partitions, conf.PartitionSize, hashFunc)
+	driver := partitioned_map.NewPartitionedMap[K, V](
+		hashFunc,
+		partitioned_map.WithLRUPartition[K, V](conf.PartitionSize),
+		partitioned_map.WithPartitionsNum[K, V](conf.Partitions),
+	)
 
 	return NewWithDriver[K, V](driver)
 }
 
 func (c *Cache[K, V]) Set(key K, value V) error {
-	return c.driver.Set(key, value)
+	return c.driver.Put(key, value)
 }
 
 func (c *Cache[K, V]) Get(key K) (V, error) {
