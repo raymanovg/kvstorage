@@ -1,4 +1,4 @@
-package partitioned_map
+package cache
 
 import (
 	"container/list"
@@ -10,28 +10,28 @@ type Node[V any] struct {
 	Element *list.Element
 }
 
-type LRUPartition[K comparable, V any] struct {
+type LRUCache[K comparable, V any] struct {
 	sync.RWMutex
 	mp   map[K]Node[V]
 	list *list.List
 	cap  int
 }
 
-func (p *LRUPartition[K, V]) Get(key K) (V, bool) {
+func (p *LRUCache[K, V]) Get(key K) (V, error) {
 	p.RLock()
 	defer p.RUnlock()
 
 	if node, ok := p.mp[key]; ok {
 		p.list.MoveToFront(node.Element)
-		return node.Value, true
+		return node.Value, nil
 	}
 
 	var v V
 
-	return v, false
+	return v, NotFoundError
 }
 
-func (p *LRUPartition[K, V]) Put(k K, v V) {
+func (p *LRUCache[K, V]) Put(k K, v V) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -45,25 +45,29 @@ func (p *LRUPartition[K, V]) Put(k K, v V) {
 		node.Value = v
 		p.mp[k] = node
 	}
+
+	return nil
 }
 
-func (p *LRUPartition[K, V]) Del(k K) {
+func (p *LRUCache[K, V]) Del(k K) error {
 	p.Lock()
 	defer p.Unlock()
 	if node, ok := p.mp[k]; ok {
 		p.list.Remove(node.Element)
 		delete(p.mp, k)
 	}
+
+	return nil
 }
 
-func (p *LRUPartition[K, V]) Len() int {
+func (p *LRUCache[K, V]) Len() int {
 	p.RLock()
 	defer p.RUnlock()
 	return len(p.mp)
 }
 
-func NewLRUPartition[K comparable, V any](size int) *LRUPartition[K, V] {
-	return &LRUPartition[K, V]{
+func NewLRUCache[K comparable, V any](size int) *LRUCache[K, V] {
+	return &LRUCache[K, V]{
 		mp:   make(map[K]Node[V], size),
 		list: list.New(),
 		cap:  size,
