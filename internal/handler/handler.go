@@ -18,7 +18,7 @@ type Value struct {
 
 type Handler struct {
 	chi   chi.Router
-	cache *cache.Cache[string, string]
+	cache cache.Cache[string, string]
 	log   *slog.Logger
 }
 
@@ -26,7 +26,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.chi.ServeHTTP(rw, r)
 }
 
-func NewHandler(c *cache.Cache[string, string], log *slog.Logger) *Handler {
+func NewHandler(log *slog.Logger, c cache.Cache[string, string]) *Handler {
 	h := &Handler{
 		cache: c,
 		log:   log.With("component", "http_handler"),
@@ -51,6 +51,8 @@ func NewHandler(c *cache.Cache[string, string], log *slog.Logger) *Handler {
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+
 	key := chi.URLParam(r, "key")
 	if key == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -95,7 +97,7 @@ func (h *Handler) Set(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.cache.Set(key, value.Value); err != nil {
+	if err := h.cache.Put(key, value.Value); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

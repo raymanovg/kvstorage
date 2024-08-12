@@ -23,17 +23,16 @@ func main() {
 	cfg := config.MustLoad()
 	log := logger.NewLogger(cfg.Env, Version)
 
-	c, err := cache.NewStrStrCache(cfg)
-	if err != nil {
-		log.Error("Creating cache error", slog.String("error", err.Error()))
-		return
-	}
+	c := cache.NewPartitionedCache[string, string](
+		cache.WithPartitionsNum[string, string](10),
+		cache.WithMapPartition[string, string](1000),
+	)
 
-	h := handler.NewHandler(c, log)
+	h := handler.NewHandler(log, c)
 	srv := server.NewServer(cfg.Http, h)
 
 	go func() {
-		if err = srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Error("HTTP server error", slog.String("error", err.Error()))
 		}
 	}()

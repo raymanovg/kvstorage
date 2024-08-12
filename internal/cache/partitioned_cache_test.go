@@ -3,16 +3,9 @@ package cache
 import (
 	"fmt"
 	"math"
+	"sync"
 	"testing"
 )
-
-//func GetNewPartitionedCache(partitions, size int) *PartitionedCache[string, string] {
-//	return NewPartitionedCache[string, string](
-//		WithMapPartition[string, string](size),
-//		WithPartitionsNum[string, string](partitions),
-//		WithHashFunc[string, string](GenericHashFunc[string, string]),
-//	)
-//}
 
 func TestPartitionedMap(t *testing.T) {
 	const (
@@ -21,7 +14,7 @@ func TestPartitionedMap(t *testing.T) {
 		keysNums   = 5_000_000
 	)
 
-	hashFunctions := []struct {
+	tt := []struct {
 		name      string
 		hashFunc  HashFunc[string]
 		maxStdDev float64
@@ -38,13 +31,13 @@ func TestPartitionedMap(t *testing.T) {
 		},
 	}
 
-	for _, tCase := range hashFunctions {
-		t.Run(fmt.Sprintf("HashFuncStdDeviationOfDestibution.%s", tCase.name), func(t *testing.T) {
+	for _, tc := range tt {
+		t.Run(fmt.Sprintf("HashFuncStdDeviationOfDestibution.%s", tc.name), func(t *testing.T) {
 			t.Parallel()
 			pc := NewPartitionedCache[string, string](
 				WithMapPartition[string, string](size),
 				WithPartitionsNum[string, string](partitions),
-				WithHashFunc[string, string](tCase.hashFunc),
+				WithHashFunc[string, string](tc.hashFunc),
 			)
 
 			for i := 0; i < keysNums; i++ {
@@ -64,8 +57,8 @@ func TestPartitionedMap(t *testing.T) {
 			expectedStdDev := math.Sqrt(mean)
 			dev := math.Abs(expectedStdDev - stdDev)
 
-			if dev > tCase.maxStdDev {
-				t.Errorf("Standart deviation more than expected. Actual %f; Expected: %f", tCase.maxStdDev, dev)
+			if dev > tc.maxStdDev {
+				t.Errorf("Standart deviation more than expected. Actual %f; Expected: %f", tc.maxStdDev, dev)
 			}
 
 			fmt.Printf("Standard deviation: %.2f \n", stdDev)
@@ -75,295 +68,182 @@ func TestPartitionedMap(t *testing.T) {
 }
 
 func BenchmarkMapSet(b *testing.B) {
-	//b.Run("benchmark standard map set", func(b *testing.B) {
-	//	var (
-	//		wg sync.WaitGroup
-	//		mx sync.RWMutex
-	//	)
-	//
-	//	m := make(map[string]string)
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			mx.Lock()
-	//
-	//			kv := fmt.Sprintf("%d", index)
-	//
-	//			m[kv] = kv
-	//			mx.Unlock()
-	//		}(i)
-	//	}
-	//
-	//	wg.Wait()
-	//})
-	//
-	//b.Run("benchmark sync map set", func(b *testing.B) {
-	//	var (
-	//		wg sync.WaitGroup
-	//		m  sync.Map
-	//	)
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			kv := fmt.Sprintf("%d", index)
-	//
-	//			m.Store(kv, kv)
-	//		}(i)
-	//	}
-	//
-	//	wg.Wait()
-	//})
-	//
-	//b.Run("benchmark partitioned map set", func(b *testing.B) {
-	//	const (
-	//		partitions = 10
-	//		size       = 0
-	//	)
-	//
-	//	var wg sync.WaitGroup
-	//
-	//	pm := GetNewPartitionedCache(partitions, size)
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			kv := fmt.Sprintf("%d", index)
-	//			_ = pm.Put(kv, kv)
-	//		}(i)
-	//	}
-	//
-	//	wg.Wait()
-	//})
+	const (
+		partitions = 1000
+		size       = 100
+	)
+
+	mapCache := NewMapCache[string, string](partitions * size)
+	lruCache := NewLRUCache[string, string](partitions * size)
+	pc := NewPartitionedCache[string, string](
+		WithPartitionsNum[string, string](partitions),
+		WithMapPartition[string, string](size),
+	)
+
+	bt := []struct {
+		name  string
+		cache Cache[string, string]
+	}{
+		{
+			name:  "map cache set",
+			cache: mapCache,
+		},
+		{
+			name:  "lru cache set",
+			cache: lruCache,
+		},
+		{
+			name:  "partitioned map set",
+			cache: pc,
+		},
+	}
+
+	for _, bt := range bt {
+		b.Run(bt.name, func(b *testing.B) {
+			wg := sync.WaitGroup{}
+
+			for i := 0; i < b.N; i++ {
+				wg.Add(1)
+				go func(index int) {
+					defer wg.Done()
+
+					kv := fmt.Sprintf("%d", index)
+
+					bt.cache.Put(kv, kv)
+				}(i)
+			}
+
+			wg.Wait()
+		})
+	}
 }
 
 func BenchmarkMapGet(b *testing.B) {
-	//b.Run("benchmark standard map get", func(b *testing.B) {
-	//	var (
-	//		wg sync.WaitGroup
-	//		mx sync.RWMutex
-	//	)
-	//	m := make(map[string]string)
-	//	for i := 0; i < b.N; i++ {
-	//		kv := fmt.Sprintf("%d", i)
-	//
-	//		m[kv] = kv
-	//	}
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			mx.RLock()
-	//			kv := fmt.Sprintf("%d", index)
-	//
-	//			v, ok := m[kv]
-	//			mx.RUnlock()
-	//			if !ok && v == "" {
-	//				b.Fail()
-	//			}
-	//		}(i)
-	//	}
-	//
-	//	wg.Wait()
-	//})
-	//
-	//b.Run("benchmark sync map get", func(b *testing.B) {
-	//	var (
-	//		wg sync.WaitGroup
-	//		m  sync.Map
-	//	)
-	//	for i := 0; i < b.N; i++ {
-	//		kv := fmt.Sprintf("%d", i)
-	//		m.Store(kv, kv)
-	//	}
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			kv := fmt.Sprintf("%d", index)
-	//			v, ok := m.Load(kv)
-	//			if !ok || v == "" {
-	//				b.Fail()
-	//			}
-	//		}(i)
-	//	}
-	//
-	//	wg.Wait()
-	//})
-	//
-	//b.Run("benchmark partitioned map get", func(b *testing.B) {
-	//	const (
-	//		partitions = 10
-	//		size       = 0
-	//	)
-	//
-	//	pm := GetPartitionedMap(partitions, size)
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		kv := fmt.Sprintf("%d", i)
-	//		_ = pm.Put(kv, kv)
-	//	}
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	var wg sync.WaitGroup
-	//
-	//	for i := 0; i < b.N; i++ {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			key := fmt.Sprintf("%d", index)
-	//
-	//			if v, err := pm.Get(key); err != nil || v == "" {
-	//				b.Fail()
-	//			}
-	//		}(i)
-	//	}
-	//
-	//	wg.Wait()
-	//})
+	const (
+		partitions = 1000
+		size       = 100
+	)
+
+	mapCache := NewMapCache[string, string](partitions * size)
+	lruCache := NewLRUCache[string, string](partitions * size)
+	pc := NewPartitionedCache[string, string](
+		WithPartitionsNum[string, string](partitions),
+		WithMapPartition[string, string](size),
+	)
+
+	bt := []struct {
+		name  string
+		cache Cache[string, string]
+	}{
+		{
+			name:  "map cache get",
+			cache: mapCache,
+		},
+		{
+			name:  "lru cache get",
+			cache: lruCache,
+		},
+		{
+			name:  "partitioned map get",
+			cache: pc,
+		},
+	}
+
+	for _, bt := range bt {
+		b.Run(bt.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				kv := fmt.Sprintf("%d", i)
+
+				bt.cache.Put(kv, kv)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			wg := sync.WaitGroup{}
+
+			for i := 0; i < b.N; i++ {
+				wg.Add(1)
+				go func(index int) {
+					defer wg.Done()
+					kv := fmt.Sprintf("%d", index)
+
+					v, err := bt.cache.Get(kv)
+					if err != nil && v == "" {
+						b.Fail()
+					}
+				}(i)
+			}
+
+			wg.Wait()
+		})
+	}
 }
 
 func BenchmarkMapGetSet(b *testing.B) {
-	//b.Run("benchmark standard map get set", func(b *testing.B) {
-	//	var mx sync.RWMutex
-	//	m := make(map[string]string)
-	//	c := make(chan int, 0xff)
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	go func() {
-	//		var wg sync.WaitGroup
-	//		for i := 0; i < b.N; i++ {
-	//			wg.Add(1)
-	//			go func(index int) {
-	//				defer wg.Done()
-	//				mx.Lock()
-	//				kv := fmt.Sprintf("%d", index)
-	//				m[kv] = kv
-	//				mx.Unlock()
-	//				c <- index
-	//			}(i)
-	//		}
-	//		wg.Wait()
-	//		close(c)
-	//	}()
-	//
-	//	var wg sync.WaitGroup
-	//	for i := range c {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			mx.RLock()
-	//			kv := fmt.Sprintf("%d", index)
-	//			v, ok := m[kv]
-	//			mx.RUnlock()
-	//			if !ok || v == "" {
-	//				b.Fail()
-	//			}
-	//		}(i)
-	//	}
-	//	wg.Wait()
-	//})
+	const (
+		partitions = 1000
+		size       = 100
+	)
 
-	//b.Run("benchmark sync map get set", func(b *testing.B) {
-	//	var m sync.Map
-	//	c := make(chan int, 0xff)
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	go func() {
-	//		var wg sync.WaitGroup
-	//		for i := 0; i < b.N; i++ {
-	//			wg.Add(1)
-	//			go func(index int) {
-	//				defer wg.Done()
-	//				m.Store(fmt.Sprintf("%d", index), index)
-	//				c <- index
-	//			}(i)
-	//		}
-	//		wg.Wait()
-	//		close(c)
-	//	}()
-	//
-	//	var wg sync.WaitGroup
-	//	for i := range c {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			v, ok := m.Load(fmt.Sprintf("%d", index))
-	//			if !ok && v == 0 {
-	//				b.Fail()
-	//			}
-	//		}(i)
-	//	}
-	//	wg.Wait()
-	//})
+	mapCache := NewMapCache[string, string](partitions * size)
+	lruCache := NewLRUCache[string, string](partitions * size)
+	pc := NewPartitionedCache[string, string](
+		WithPartitionsNum[string, string](partitions),
+		WithMapPartition[string, string](size),
+	)
 
-	//b.Run("benchmark partitioned map get set", func(b *testing.B) {
-	//	const (
-	//		partitions = 10
-	//		size       = 0
-	//	)
-	//
-	//	pm := GetNewPartitionedCache(partitions, size)
-	//
-	//	c := make(chan int, 0xff)
-	//
-	//	b.ReportAllocs()
-	//	b.ResetTimer()
-	//
-	//	go func() {
-	//		var wg sync.WaitGroup
-	//		for i := 0; i < b.N; i++ {
-	//			wg.Add(1)
-	//			go func(index int) {
-	//				defer wg.Done()
-	//				kv := fmt.Sprintf("%d", index)
-	//
-	//				_ = pm.Put(kv, kv)
-	//				c <- index
-	//			}(i)
-	//		}
-	//		wg.Wait()
-	//		close(c)
-	//	}()
-	//
-	//	var wg sync.WaitGroup
-	//	for i := range c {
-	//		wg.Add(1)
-	//		go func(index int) {
-	//			defer wg.Done()
-	//			key := fmt.Sprintf("%d", index)
-	//			if v, err := pm.Get(key); err != nil || v == "" {
-	//				b.Fail()
-	//			}
-	//		}(i)
-	//	}
-	//	wg.Wait()
-	//})
+	bt := []struct {
+		name  string
+		cache Cache[string, string]
+	}{
+		{
+			name:  "map cache set get",
+			cache: mapCache,
+		},
+		{
+			name:  "lru cache set get",
+			cache: lruCache,
+		},
+		{
+			name:  "partitioned map set get",
+			cache: pc,
+		},
+	}
+
+	for _, bt := range bt {
+		b.Run(bt.name, func(b *testing.B) {
+			c := make(chan int, 0xff)
+
+			go func() {
+				var wg sync.WaitGroup
+				for i := 0; i < b.N; i++ {
+					wg.Add(1)
+					go func(index int) {
+						defer wg.Done()
+						kv := fmt.Sprintf("%d", index)
+						bt.cache.Put(kv, kv)
+						c <- index
+					}(i)
+				}
+				wg.Wait()
+				close(c)
+			}()
+
+			var wg sync.WaitGroup
+			for i := range c {
+				wg.Add(1)
+				go func(index int) {
+					defer wg.Done()
+					kv := fmt.Sprintf("%d", index)
+					v, err := bt.cache.Get(kv)
+					if err != nil || v == "" {
+						b.Fail()
+					}
+				}(i)
+			}
+
+			wg.Wait()
+		})
+	}
 }
