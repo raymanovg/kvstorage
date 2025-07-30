@@ -18,8 +18,8 @@ type LRUCache[K comparable, V any] struct {
 }
 
 func (p *LRUCache[K, V]) Get(key K) (V, error) {
-	p.RLock()
-	defer p.RUnlock()
+	p.Lock()
+	defer p.Unlock()
 
 	if node, ok := p.mp[key]; ok {
 		p.list.MoveToFront(node.Element)
@@ -37,7 +37,12 @@ func (p *LRUCache[K, V]) Put(k K, v V) error {
 
 	if node, ok := p.mp[k]; !ok {
 		if len(p.mp) >= p.cap {
-			p.list.Remove(p.list.Back())
+			elem := p.list.Back()
+			if elem != nil {
+				p.list.Remove(elem)
+				key := elem.Value.(K)
+				delete(p.mp, key)
+			}
 		}
 		p.mp[k] = Node[V]{Value: v, Element: p.list.PushFront(k)}
 	} else {
