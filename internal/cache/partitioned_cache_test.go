@@ -60,8 +60,8 @@ func TestPartitionedMap(t *testing.T) {
 				t.Errorf("Standart deviation more than expected. Actual %f; Expected: %f", tc.maxStdDev, dev)
 			}
 
-			fmt.Printf("Standard deviation: %.2f \n", stdDev)
-			fmt.Printf("Expected standard deviation: %.2f keys\n", expectedStdDev)
+			t.Logf("Standard deviation: %.2f", stdDev)
+			t.Logf("Expected standard deviation: %.2f keys", expectedStdDev)
 		})
 	}
 }
