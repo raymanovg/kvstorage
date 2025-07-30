@@ -51,8 +51,6 @@ func NewHandler(log *slog.Logger, c cache.Cache[string, string]) *Handler {
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-
 	key := chi.URLParam(r, "key")
 	if key == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -64,6 +62,8 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 
 	resp := map[string]interface{}{
 		"key": key,
